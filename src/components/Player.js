@@ -15,22 +15,22 @@ import VolumeUp from '@material-ui/icons/VolumeUp';
 import ZoomInIcon from '@material-ui/icons/ZoomIn';
 import ZoomOutIcon from '@material-ui/icons/ZoomOut';
 import HeightIcon from '@material-ui/icons/Height';
+import PauseIcon from '@material-ui/icons/Pause';
 import VerticalAlignCenterIcon from '@material-ui/icons/VerticalAlignCenter';
 import pink from "@material-ui/core/colors/pink";
 import grey from "@material-ui/core/colors/grey";
 import Box from '@material-ui/core/Box';
 import { timeformat } from '../utils';
+import {getEffects} from "../selectors";
 
 class Player extends React.Component {
     constructor(props) {
         super(props);
-        this.state = {pos: timeformat(0, 2), volume: 0.5, lastVolume: 0};
+        this.state = {volume: 0.5, lastVolume: 0, isPlaying: false};
     }
 
     componentDidMount() {
-        const {regions, regions1, regions2} = this.props;
-        const concatRegions = concat(regions, regions1);
-        const concatRegions1 = concat(concatRegions, regions2);
+        const { effects } = this.props;
         const aud = document.querySelector('#song');
 
         this.wavesurfer = WaveSurfer.create({
@@ -38,7 +38,7 @@ class Player extends React.Component {
             cursorWidth: 1,
             container: '#waveform',
             backend: 'MediaElement',
-            height: 100,
+            height: 60,
             progressColor: pink[700],
             responsive: true,
             waveColor: grey[300],
@@ -48,7 +48,7 @@ class Player extends React.Component {
                     container: "#wave-timeline"
                 }),
                 Regions.create({
-                    regions: concatRegions1,
+                    regions: effects,
                     dragSelection: {
                         slop: 5
                     },
@@ -60,26 +60,35 @@ class Player extends React.Component {
 
         this.wavesurfer.on("audioprocess", pos => {
             this.props.handleStateChange(pos);
-            this.setState({pos: timeformat(pos, 2)});
         });
 
         this.wavesurfer.on("seek", () => {
             const pos = this.wavesurfer.getCurrentTime();
             this.props.handleStateChange(pos);
-            this.setState({pos: timeformat(pos, 2)})
+        });
+
+        this.wavesurfer.on("region-update-end", (e) => {
+            console.log(e);
+           console.log("zmena pozice regionu");
         });
     }
 
     playIt = () => {
         this.distributionRegions();
         this.wavesurfer.playPause();
-        //this.distributionRegions();
+
+        const isPlaying = this.wavesurfer.isPlaying();
         const duration = this.wavesurfer.getDuration();
-        this.setState({duration: timeformat(duration, 0)});
+        this.setState({duration: timeformat(duration, 0), isPlaying });
     };
 
     stopIt = () => {
         this.wavesurfer.stop();
+    };
+
+    isPlaying = () => {
+        console.log(this.wavesurfer.isPlaying());
+        return this.wavesurfer.isPlaying();
     };
 
     volumeMute = () => {
@@ -119,10 +128,14 @@ class Player extends React.Component {
 
     handleSetVolume = (event, newValue) => {
         this.wavesurfer.setVolume(newValue);
+        this.setState({volume: newValue});
     };
 
 
     render() {
+        const isPlaying = this.state.isPlaying;
+        const volume = this.state.volume;
+        const duration = this.state.duration;
         return (
             <div>
                 <Box position="fixed" bottom="0" style={{width: '100%'}}>
@@ -130,14 +143,14 @@ class Player extends React.Component {
                         <Grid item xs={2}>
                             <Grid container spacing={2}>
                                 <Grid item>
-                                    <VerticalAlignCenterIcon color="secondary"/>
+                                    <VolumeDown color="secondary"/>
                                 </Grid>
                                 <Grid item xs>
-                                    <Slider min={60} max={500} onChange={this.handleSetHeight}
+                                    <Slider max={1} step={0.01} onChange={this.handleSetVolume} value={volume}
                                             aria-labelledby="continuous-slider"/>
                                 </Grid>
                                 <Grid item>
-                                    <HeightIcon color="secondary"/>
+                                    <VolumeUp color="secondary"/>
                                 </Grid>
                             </Grid>
                         </Grid>
@@ -160,30 +173,30 @@ class Player extends React.Component {
                         <Grid item xs={2}>
                             <Grid container spacing={2}>
                                 <Grid item>
-                                    <VolumeDown color="secondary"/>
+                                    <VerticalAlignCenterIcon color="secondary"/>
                                 </Grid>
                                 <Grid item xs>
-                                    <Slider max={1} step={0.01} onChange={this.handleSetVolume}
+                                    <Slider min={60} max={500} onChange={this.handleSetHeight}
                                             aria-labelledby="continuous-slider"/>
                                 </Grid>
                                 <Grid item>
-                                    <VolumeUp color="secondary"/>
+                                    <HeightIcon color="secondary"/>
                                 </Grid>
                             </Grid>
                         </Grid>
                         <Grid item xs={8}>
                             <Grid container spacing={0} justify="center" alignItems="center" alignContent="center">
-                                {this.state.pos}
+                                {timeformat(this.props.pos, 2)}
                                 <Fab color="secondary" aria-label="Stop" onClick={this.stopIt}>
                                     <StopIcon/>
                                 </Fab>
                                 <Fab color="primary" aria-label="Play" onClick={this.playIt}>
-                                    <PlayArrowIcon/>
+                                    {isPlaying ? (<PauseIcon/>):(<PlayArrowIcon/>)}
                                 </Fab>
                                 <Fab color="secondary" aria-label="Mute" onClick={this.volumeMute}>
                                     <VolumeOffIcon/>
                                 </Fab>
-                                {this.state.duration}
+                                {duration}
                             </Grid>
                         </Grid>
                         <Grid item xs={2}>
@@ -207,10 +220,7 @@ class Player extends React.Component {
 }
 
 const mapStateToProps = (state) => ({
-    board: path(['app', 'board'], state),
-    regions: state.app.board.lanes[0].cards,
-    regions1: state.app.board.lanes[1].cards,
-    regions2: state.app.board.lanes[2].cards,
+    effects: getEffects(state),
 });
 
 const mapDispatchToProps = {
