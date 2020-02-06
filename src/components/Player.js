@@ -4,10 +4,11 @@ import Timeline from 'wavesurfer.js/dist/plugin/wavesurfer.timeline';
 import Regions from 'wavesurfer.js/dist/plugin/wavesurfer.regions';
 import {connect} from "react-redux";
 import Slider from '@material-ui/core/Slider';
-import {path, concat} from 'ramda';
 import PlayArrowIcon from '@material-ui/icons/PlayArrow';
 import StopIcon from '@material-ui/icons/Stop';
 import VolumeOffIcon from '@material-ui/icons/VolumeOff';
+import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
+import ExpandLessIcon from '@material-ui/icons/ExpandLess';
 import Fab from '@material-ui/core/Fab';
 import Grid from '@material-ui/core/Grid';
 import VolumeDown from '@material-ui/icons/VolumeDown';
@@ -15,30 +16,31 @@ import VolumeUp from '@material-ui/icons/VolumeUp';
 import ZoomInIcon from '@material-ui/icons/ZoomIn';
 import ZoomOutIcon from '@material-ui/icons/ZoomOut';
 import HeightIcon from '@material-ui/icons/Height';
+import PauseIcon from '@material-ui/icons/Pause';
 import VerticalAlignCenterIcon from '@material-ui/icons/VerticalAlignCenter';
 import pink from "@material-ui/core/colors/pink";
 import grey from "@material-ui/core/colors/grey";
 import Box from '@material-ui/core/Box';
-import { timeformat } from '../utils';
+import {timeformat} from '../utils';
+import {getEffectsInScene} from "../selectors";
+import {forEach, uniq, length, map, values} from 'ramda';
 
 class Player extends React.Component {
     constructor(props) {
         super(props);
-        this.state = {pos: timeformat(0, 2), volume: 0.5, lastVolume: 0};
+        this.state = {volume: 0.5, lastVolume: 0, isPlaying: false, showPlayer: true};
     }
 
     componentDidMount() {
-        const {regions, regions1, regions2} = this.props;
-        const concatRegions = concat(regions, regions1);
-        const concatRegions1 = concat(concatRegions, regions2);
         const aud = document.querySelector('#song');
 
+        const {effects} = this.props;
         this.wavesurfer = WaveSurfer.create({
             barWidth: 1,
             cursorWidth: 1,
             container: '#waveform',
             backend: 'MediaElement',
-            height: 100,
+            height: 60,
             progressColor: pink[700],
             responsive: true,
             waveColor: grey[300],
@@ -48,7 +50,7 @@ class Player extends React.Component {
                     container: "#wave-timeline"
                 }),
                 Regions.create({
-                    regions: concatRegions1,
+                    regions: effects,
                     dragSelection: {
                         slop: 5
                     },
@@ -60,26 +62,39 @@ class Player extends React.Component {
 
         this.wavesurfer.on("audioprocess", pos => {
             this.props.handleStateChange(pos);
-            this.setState({pos: timeformat(pos, 2)});
+            this.distributionRegions();
         });
 
         this.wavesurfer.on("seek", () => {
             const pos = this.wavesurfer.getCurrentTime();
             this.props.handleStateChange(pos);
-            this.setState({pos: timeformat(pos, 2)})
+        });
+
+        this.wavesurfer.on("region-update-end", (e) => {
+            console.log(e);
+            console.log("zmena pozice regionu");
         });
     }
 
     playIt = () => {
+        const {effects} = this.props;
         this.distributionRegions();
         this.wavesurfer.playPause();
-        //this.distributionRegions();
+        this.wavesurfer.clearRegions();
+        const addRegion = effect => this.wavesurfer.addRegion(effect);
+        forEach(addRegion, effects);
+
+        const isPlaying = this.wavesurfer.isPlaying();
         const duration = this.wavesurfer.getDuration();
-        this.setState({duration: timeformat(duration, 0)});
+        this.setState({duration: timeformat(duration, 0), isPlaying});
     };
 
     stopIt = () => {
         this.wavesurfer.stop();
+    };
+
+    isPlaying = () => {
+        return this.wavesurfer.isPlaying();
     };
 
     volumeMute = () => {
@@ -96,15 +111,26 @@ class Player extends React.Component {
 
 
     distributionRegions = () => {
-        let regions = this.wavesurfer.regions.params.regions;
+        let regions = this.wavesurfer.regions.list;
         let regionsFromDom = document.getElementsByTagName('region');
 
+        const countOfEffects = length(values(regions));
+        const countOfSites = length(uniq(map((region)=> region.data, values(regions))));
+        const siteIds = map((region)=> region.data, values(regions));
+        //if(regions[effectId].data === siteIds[i]){
+        //  regionsFromDom[i].style.top = tops[i];
+        //}
+
         let i;
-        for (i = 0; i < regions.length; i++) {
-            let name = regions[i].firePlace;
+        //const tops = ["0", "50%"];
+        for (i = 0; i < countOfEffects; i++) {
+            let effectId = regionsFromDom[i].dataset.id;
+
+            //regionsFromDom[i].style.top = tops[i];
+            let heightClass = "regionsHeight"+(countOfSites);
             let arr = regionsFromDom[i].className.split(" ");
-            if (arr.indexOf(name) === -1) {
-                regionsFromDom[i].className += " " + name;
+            if (arr.indexOf(heightClass) === -1) {
+                regionsFromDom[i].setAttribute("id", heightClass);
             }
         }
     };
@@ -119,14 +145,75 @@ class Player extends React.Component {
 
     handleSetVolume = (event, newValue) => {
         this.wavesurfer.setVolume(newValue);
+        this.setState({volume: newValue});
+    };
+
+    hidePlayer = () => {
+        this.setState({showPlayer: !this.state.showPlayer})
     };
 
 
     render() {
+        const isPlaying = this.state.isPlaying;
+        const volume = this.state.volume;
+        const duration = this.state.duration;
+        const showPlayer = this.state.showPlayer;
+
+        let styleForPlayer = this.state.showPlayer ? "block" : "none";
+
         return (
             <div>
-                <Box position="fixed" bottom="0" style={{width: '100%'}}>
-                    <Grid container spacing={1}>
+                {(!showPlayer &&
+                    <Box position="fixed" bottom="0" right="0">
+                        {timeformat(this.props.pos, 2)}
+                        <Fab color="primary" aria-label="Play" onClick={this.playIt}>
+                            {isPlaying ? (<PauseIcon/>) : (<PlayArrowIcon/>)}
+                        </Fab>
+                        <Fab color="secondary" aria-label="Stop" onClick={this.hidePlayer}>
+                            <ExpandLessIcon/>
+                        </Fab>
+                    </Box>
+                )}
+                <Box position="fixed" bottom="0" display={styleForPlayer} style={{width: '100%'}}>
+                    <Grid container alignItems="center" justify="space-between">
+                        <Grid item xs={2} >
+                            <Grid container spacing={2}>
+                                <Grid item>
+                                    <VolumeDown color="secondary"/>
+                                </Grid>
+                                <Grid item xs>
+                                    <Slider max={1} step={0.01} onChange={this.handleSetVolume} value={volume}
+                                            aria-labelledby="continuous-slider"/>
+                                </Grid>
+                                <Grid item>
+                                    <VolumeUp color="secondary"/>
+                                </Grid>
+                            </Grid>
+                        </Grid>
+                        <Grid item>
+                            {(showPlayer &&
+                                <Fab color="secondary" aria-label="Stop" onClick={this.hidePlayer}>
+                                    <ExpandMoreIcon/>
+                                </Fab>
+                            )}
+                        </Grid>
+                    </Grid>
+                    <Grid container>
+                        <div
+                            id="waveform"
+                            className="player"
+                        />
+                        <div
+                            id="wave-timeline"
+                        />
+                        <audio
+                            id="song"
+                            src="https://reelcrafter-east.s3.amazonaws.com/aux/test.m4a"
+                        />
+                    </Grid>
+
+                    <Grid container spacing={1} justify="center"
+                          alignItems="center">
                         <Grid item xs={2}>
                             <Grid container spacing={2}>
                                 <Grid item>
@@ -141,49 +228,19 @@ class Player extends React.Component {
                                 </Grid>
                             </Grid>
                         </Grid>
-                        <Grid item xs={12}>
-                            <div
-                                id="waveform"
-                                className="player"
-                            />
-                            <div
-                                id="wave-timeline"
-                            />
-                            <audio
-                                id="song"
-                                src="https://reelcrafter-east.s3.amazonaws.com/aux/test.m4a"
-                            />
-                        </Grid>
-                    </Grid>
-                    <Grid container spacing={1} justify="center"
-                          alignItems="center">
-                        <Grid item xs={2}>
-                            <Grid container spacing={2}>
-                                <Grid item>
-                                    <VolumeDown color="secondary"/>
-                                </Grid>
-                                <Grid item xs>
-                                    <Slider max={1} step={0.01} onChange={this.handleSetVolume}
-                                            aria-labelledby="continuous-slider"/>
-                                </Grid>
-                                <Grid item>
-                                    <VolumeUp color="secondary"/>
-                                </Grid>
-                            </Grid>
-                        </Grid>
                         <Grid item xs={8}>
                             <Grid container spacing={0} justify="center" alignItems="center" alignContent="center">
-                                {this.state.pos}
+                                {timeformat(this.props.pos, 2)}
                                 <Fab color="secondary" aria-label="Stop" onClick={this.stopIt}>
                                     <StopIcon/>
                                 </Fab>
                                 <Fab color="primary" aria-label="Play" onClick={this.playIt}>
-                                    <PlayArrowIcon/>
+                                    {isPlaying ? (<PauseIcon/>) : (<PlayArrowIcon/>)}
                                 </Fab>
                                 <Fab color="secondary" aria-label="Mute" onClick={this.volumeMute}>
                                     <VolumeOffIcon/>
                                 </Fab>
-                                {this.state.duration}
+                                {duration}
                             </Grid>
                         </Grid>
                         <Grid item xs={2}>
@@ -207,15 +264,10 @@ class Player extends React.Component {
 }
 
 const mapStateToProps = (state) => ({
-    board: path(['app', 'board'], state),
-    regions: state.app.board.lanes[0].cards,
-    regions1: state.app.board.lanes[1].cards,
-    regions2: state.app.board.lanes[2].cards,
+    effects: getEffectsInScene('scene1')(state),
 });
 
-const mapDispatchToProps = {
+const mapDispatchToProps = {};
 
-};
-
-export { Player };
+export {Player};
 export default connect(mapStateToProps, mapDispatchToProps)(Player);
