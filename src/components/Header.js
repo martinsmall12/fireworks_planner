@@ -6,6 +6,7 @@ import Typography from '@material-ui/core/Typography';
 import Button from '@material-ui/core/Button';
 import IconButton from '@material-ui/core/IconButton';
 import MenuIcon from '@material-ui/icons/Menu';
+import Link from '@material-ui/core/Link';
 
 const useStyles = makeStyles(theme => ({
     root: {
@@ -29,7 +30,9 @@ export default function Menu() {
                         <MenuIcon />
                     </IconButton>
                     <Typography variant="h6" className={classes.title}>
-                        News
+                        <Link href="/fireplan">
+                            Link
+                        </Link>
                     </Typography>
                     <Button color="inherit">Login</Button>
                 </Toolbar>

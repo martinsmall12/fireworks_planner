@@ -31,6 +31,12 @@ function addScene(state, action) {
     }
 }
 
+function allScenesId(state = [], action) {
+    const { payload } = action;
+    const { sceneId } = payload;
+    return state.concat(sceneId);
+}
+
 function scenesById(state = {}, action) {
     switch (action.type) {
         case 'ADD_SITE':
@@ -42,8 +48,13 @@ function scenesById(state = {}, action) {
     }
 }
 
-function allScenes(state = [], action) {
-    return state;
+function allScenes(state = {}, action) {
+    switch (action.type) {
+        case 'ADD_SCENE':
+            return allScenesId(state, action);
+        default:
+            return state
+    }
 }
 
 export default combineReducers({

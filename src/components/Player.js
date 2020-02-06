@@ -4,10 +4,11 @@ import Timeline from 'wavesurfer.js/dist/plugin/wavesurfer.timeline';
 import Regions from 'wavesurfer.js/dist/plugin/wavesurfer.regions';
 import {connect} from "react-redux";
 import Slider from '@material-ui/core/Slider';
-import {path, concat} from 'ramda';
 import PlayArrowIcon from '@material-ui/icons/PlayArrow';
 import StopIcon from '@material-ui/icons/Stop';
 import VolumeOffIcon from '@material-ui/icons/VolumeOff';
+import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
+import ExpandLessIcon from '@material-ui/icons/ExpandLess';
 import Fab from '@material-ui/core/Fab';
 import Grid from '@material-ui/core/Grid';
 import VolumeDown from '@material-ui/icons/VolumeDown';
@@ -20,19 +21,20 @@ import VerticalAlignCenterIcon from '@material-ui/icons/VerticalAlignCenter';
 import pink from "@material-ui/core/colors/pink";
 import grey from "@material-ui/core/colors/grey";
 import Box from '@material-ui/core/Box';
-import { timeformat } from '../utils';
-import {getEffects} from "../selectors";
+import {timeformat} from '../utils';
+import {getEffectsInScene} from "../selectors";
+import {forEach, uniq, length, map, values} from 'ramda';
 
 class Player extends React.Component {
     constructor(props) {
         super(props);
-        this.state = {volume: 0.5, lastVolume: 0, isPlaying: false};
+        this.state = {volume: 0.5, lastVolume: 0, isPlaying: false, showPlayer: true};
     }
 
     componentDidMount() {
-        const { effects } = this.props;
         const aud = document.querySelector('#song');
 
+        const {effects} = this.props;
         this.wavesurfer = WaveSurfer.create({
             barWidth: 1,
             cursorWidth: 1,
@@ -60,6 +62,7 @@ class Player extends React.Component {
 
         this.wavesurfer.on("audioprocess", pos => {
             this.props.handleStateChange(pos);
+            this.distributionRegions();
         });
 
         this.wavesurfer.on("seek", () => {
@@ -69,17 +72,21 @@ class Player extends React.Component {
 
         this.wavesurfer.on("region-update-end", (e) => {
             console.log(e);
-           console.log("zmena pozice regionu");
+            console.log("zmena pozice regionu");
         });
     }
 
     playIt = () => {
+        const {effects} = this.props;
         this.distributionRegions();
         this.wavesurfer.playPause();
+        this.wavesurfer.clearRegions();
+        const addRegion = effect => this.wavesurfer.addRegion(effect);
+        forEach(addRegion, effects);
 
         const isPlaying = this.wavesurfer.isPlaying();
         const duration = this.wavesurfer.getDuration();
-        this.setState({duration: timeformat(duration, 0), isPlaying });
+        this.setState({duration: timeformat(duration, 0), isPlaying});
     };
 
     stopIt = () => {
@@ -87,7 +94,6 @@ class Player extends React.Component {
     };
 
     isPlaying = () => {
-        console.log(this.wavesurfer.isPlaying());
         return this.wavesurfer.isPlaying();
     };
 
@@ -105,15 +111,26 @@ class Player extends React.Component {
 
 
     distributionRegions = () => {
-        let regions = this.wavesurfer.regions.params.regions;
+        let regions = this.wavesurfer.regions.list;
         let regionsFromDom = document.getElementsByTagName('region');
 
+        const countOfEffects = length(values(regions));
+        const countOfSites = length(uniq(map((region)=> region.data, values(regions))));
+        const siteIds = map((region)=> region.data, values(regions));
+        //if(regions[effectId].data === siteIds[i]){
+        //  regionsFromDom[i].style.top = tops[i];
+        //}
+
         let i;
-        for (i = 0; i < regions.length; i++) {
-            let name = regions[i].firePlace;
+        //const tops = ["0", "50%"];
+        for (i = 0; i < countOfEffects; i++) {
+            let effectId = regionsFromDom[i].dataset.id;
+
+            //regionsFromDom[i].style.top = tops[i];
+            let heightClass = "regionsHeight"+(countOfSites);
             let arr = regionsFromDom[i].className.split(" ");
-            if (arr.indexOf(name) === -1) {
-                regionsFromDom[i].className += " " + name;
+            if (arr.indexOf(heightClass) === -1) {
+                regionsFromDom[i].setAttribute("id", heightClass);
             }
         }
     };
@@ -131,16 +148,35 @@ class Player extends React.Component {
         this.setState({volume: newValue});
     };
 
+    hidePlayer = () => {
+        this.setState({showPlayer: !this.state.showPlayer})
+    };
+
 
     render() {
         const isPlaying = this.state.isPlaying;
         const volume = this.state.volume;
         const duration = this.state.duration;
+        const showPlayer = this.state.showPlayer;
+
+        let styleForPlayer = this.state.showPlayer ? "block" : "none";
+
         return (
             <div>
-                <Box position="fixed" bottom="0" style={{width: '100%'}}>
-                    <Grid container spacing={1}>
-                        <Grid item xs={2}>
+                {(!showPlayer &&
+                    <Box position="fixed" bottom="0" right="0">
+                        {timeformat(this.props.pos, 2)}
+                        <Fab color="primary" aria-label="Play" onClick={this.playIt}>
+                            {isPlaying ? (<PauseIcon/>) : (<PlayArrowIcon/>)}
+                        </Fab>
+                        <Fab color="secondary" aria-label="Stop" onClick={this.hidePlayer}>
+                            <ExpandLessIcon/>
+                        </Fab>
+                    </Box>
+                )}
+                <Box position="fixed" bottom="0" display={styleForPlayer} style={{width: '100%'}}>
+                    <Grid container alignItems="center" justify="space-between">
+                        <Grid item xs={2} >
                             <Grid container spacing={2}>
                                 <Grid item>
                                     <VolumeDown color="secondary"/>
@@ -154,20 +190,28 @@ class Player extends React.Component {
                                 </Grid>
                             </Grid>
                         </Grid>
-                        <Grid item xs={12}>
-                            <div
-                                id="waveform"
-                                className="player"
-                            />
-                            <div
-                                id="wave-timeline"
-                            />
-                            <audio
-                                id="song"
-                                src="https://reelcrafter-east.s3.amazonaws.com/aux/test.m4a"
-                            />
+                        <Grid item>
+                            {(showPlayer &&
+                                <Fab color="secondary" aria-label="Stop" onClick={this.hidePlayer}>
+                                    <ExpandMoreIcon/>
+                                </Fab>
+                            )}
                         </Grid>
                     </Grid>
+                    <Grid container>
+                        <div
+                            id="waveform"
+                            className="player"
+                        />
+                        <div
+                            id="wave-timeline"
+                        />
+                        <audio
+                            id="song"
+                            src="https://reelcrafter-east.s3.amazonaws.com/aux/test.m4a"
+                        />
+                    </Grid>
+
                     <Grid container spacing={1} justify="center"
                           alignItems="center">
                         <Grid item xs={2}>
@@ -191,7 +235,7 @@ class Player extends React.Component {
                                     <StopIcon/>
                                 </Fab>
                                 <Fab color="primary" aria-label="Play" onClick={this.playIt}>
-                                    {isPlaying ? (<PauseIcon/>):(<PlayArrowIcon/>)}
+                                    {isPlaying ? (<PauseIcon/>) : (<PlayArrowIcon/>)}
                                 </Fab>
                                 <Fab color="secondary" aria-label="Mute" onClick={this.volumeMute}>
                                     <VolumeOffIcon/>
@@ -220,12 +264,10 @@ class Player extends React.Component {
 }
 
 const mapStateToProps = (state) => ({
-    effects: getEffects(state),
+    effects: getEffectsInScene('scene1')(state),
 });
 
-const mapDispatchToProps = {
+const mapDispatchToProps = {};
 
-};
-
-export { Player };
+export {Player};
 export default connect(mapStateToProps, mapDispatchToProps)(Player);

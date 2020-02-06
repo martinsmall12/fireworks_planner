@@ -1,23 +1,22 @@
 import React from "react"
-import {connect} from 'react-redux';
-import Preview from '../components/Preview.js'
+import Home from '../components/Home.js'
 
 import Layout from "../components/layout"
 import SEO from "../components/seo"
+import Products from "../components/Products";
 
 const ColorContext = React.createContext("yellow")
 
-const IndexPage = ({isDarkMode, dispatch}) => (
+const IndexPage = () => (
     <Layout>
         <SEO title="Home" keywords={[`gatsby`, `application`, `react`]}/>
         <ColorContext.Provider>
-            <Preview/>
+            <Home/>
+            <Products/>
         </ColorContext.Provider>
     </Layout>
-)
+);
 
 
-export default connect(state => ({
-    isDarkMode: state.app.isDarkMode
-}), null)(IndexPage)
+export default IndexPage;
 

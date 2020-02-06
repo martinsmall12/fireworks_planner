@@ -1,4 +1,4 @@
-import {always, cond, equals, prop} from "ramda";
+import {equals, prop} from "ramda";
 
 const togetherStyle = {
     opacity: 0.5,
@@ -21,18 +21,8 @@ export const equalsPreviewPosition = (effect, previewPosition) => equals(prop('p
 
 export const fireToPreviewPosition = (effect, pos, previewPosition) => equalsPreviewPosition(effect, previewPosition) && effectInFirePosition(pos, effect);
 
-/*
-export const getStyleForPreviewPositions = (effect, pos) => (previewPosition) => cond([
-    [fireToPreviewPosition(effect, pos) && equals(1),   always({ top: 0, left: 0, togetherStyle })],
-    [fireToPreviewPosition(effect, pos) && equals(2),   always({ top: 0, left: '33.3%', togetherStyle })],
-    [fireToPreviewPosition(effect, pos) && equals(3),   always({ top: 0, left: '66.6%', togetherStyle })],
-    [fireToPreviewPosition(effect, pos) && equals(4),   always({ top: '50%', left: 0, togetherStyle })],
-    [fireToPreviewPosition(effect, pos) && equals(5),   always({ top: '50%', left: '33.3%', togetherStyle })],
-    [fireToPreviewPosition(effect, pos) && equals(6),   always({ top: '50%', left: '66.6%', togetherStyle })],
-])(previewPosition);
-
-*/
-export const getStyleForPreviewPositions = (effect, pos, previewPosition) => {
+export const getStyleForPreviewPositions = (effect, pos ) => {
+    const previewPosition = effect ? effect.previewPosition : undefined;
     if (previewPosition === 1 && fireToPreviewPosition(effect, pos, previewPosition)) {
         return {top: 0, left: 0, ...togetherStyle};
     } else if (previewPosition === 2 && fireToPreviewPosition(effect, pos, previewPosition)) {

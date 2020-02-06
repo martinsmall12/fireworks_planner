@@ -1,11 +1,11 @@
 import { combineReducers } from 'redux';
+import {equals, filter, pick, not, assoc} from "ramda";
 
 // reducers/sites.js
 
 function addEffectToSite(state = [], action) {
     const { payload } = action;
     const { siteId, effectId } = payload;
-
     const site = state[siteId];
 
     return {
@@ -38,12 +38,25 @@ function allSitesId(state = [], action) {
     return state.concat(siteId);
 }
 
+function removeEffect(state = [], action) {
+    const { payload } = action;
+    const { effectId, siteId } = payload;
+    const leftEffects = filter((effect) => (not(equals(effectId, effect))), state[siteId].effects);
+
+    const siteWithoutEffect = pick(['id', 'title'], state[siteId]);
+    return {...state,
+        [siteId]: assoc('effects', leftEffects, siteWithoutEffect)
+    }
+}
+
 function sitesById(state = {}, action) {
     switch (action.type) {
         case 'ADD_SITE':
             return addSite(state, action);
         case 'ADD_EFFECT':
             return addEffectToSite(state, action);
+        case 'REMOVE_EFFECT':
+            return removeEffect(state, action);
         default:
             return state
     }
