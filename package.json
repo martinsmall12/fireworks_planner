@@ -12,7 +12,7 @@
     "@u-wave/react-youtube": "^0.7.0",
     "array-move": "^2.2.1",
     "dot-prop-immutable": "^2.0.0",
-    "gatsby": "^2.18.21",
+    "gatsby": "^4.25.7",
     "gatsby-image": "^2.2.38",
     "gatsby-plugin-manifest": "^2.2.37",
     "gatsby-plugin-offline": "^3.0.31",
